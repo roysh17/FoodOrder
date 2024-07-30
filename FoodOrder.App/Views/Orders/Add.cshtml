@@ -1,0 +1,238 @@
+﻿@using FoodOrder.Repository.Dtos.Orders;
+@using FoodOrder.Repository.Dtos.Foods;
+
+@model FoodOrder.Repository.Dtos.Orders.CreateOrderDto;
+
+<style>
+    .readOnlyField {
+        background-color: #f8f9fa;
+    }
+</style>
+
+<div class="container-fluid px-4">
+    <h1 class="mt-4">Tambah Pesanan</h1>
+
+    <div class="card mb-4">
+
+        <div class="card-body">
+
+            <div class="row col-12">
+                @if (TempData["ErrorMessage"] != null)
+                {
+                    <center class="text-danger">@TempData["ErrorMessage"]</center>
+                }
+
+                <form method="post" action="/orders/addItem">
+                    <div>
+                        <div class="row mb-3">
+                            <div class="col-md-2">
+                                <b>Item Name</b>
+                            </div>
+                            <div class="col-md-4">
+                                <select class="form-control" name="foodName" id="foodName" onchange="loadItemDetail(this.value);">
+                                    <option value="">Choose Item</option>
+                                    @foreach (var food in (List<Food>)ViewData["foods"])
+                                    {
+                                        <option value="@food.FoodId">@food.Name</option>
+                                    }
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-2">
+                                <b>Item Price</b>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="text" class="form-control readOnlyField" id="itemPrice" name="itemPrice" readonly="readonly" />
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-2">
+                                <b>Quantity</b>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="number" class="form-control" id="itemQuantity" name="itemQuantity" required="required" onkeyup="updateTotalPrice(this.value);" disabled="disabled" />
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-2">
+                                <b>Total Price (Rp)</b>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="text" class="form-control readOnlyField" id="totalPrice" name="totalPrice" readonly="readonly" />
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-2">
+                                <b>Customer Name</b>
+                            </div>
+                            <div class="col-md-4">
+                                <input type="text" class="form-control" id="customerName" name="customerName" />
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-2">&nbsp;</div>
+                            <div class="col-md-4">
+                                <button type="button" class="btn btn-success" id="btnAddItem" disabled="disabled" onclick="addItemToList();">Add item to order list</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <table id="dataTable1" class="table table-striped table-bordered dt-responsive nowrap" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>Item Name</th>
+                                    <th>Item Price (Rp)</th>
+                                    <th>Quantity</th>
+                                    <th>Total Price (Rp)</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
+
+                    <div class="container">
+                        <div class="row">
+                            <div class="col-10" style="text-align:right">
+                                <b>Total Price (Rp)</b>
+                            </div>
+                            <div class="col-2">
+                                <span id="totalAllPrice">0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <button id="btnSubmitOrder" type="submit" href="/orders" class="btn btn-primary" disabled="disabled">Submit</button>
+                        <a href="/orders" class="btn btn-secondary">Cancel</a>
+                    </div>
+
+                </form>
+
+            </div>
+        </div>
+    </div>
+</div>
+
+@inject FoodOrder.App.Interfaces.IJqueryAjaxUrlHelper urlHelper;
+
+@section Scripts {
+
+    <script src="~/lib/jquery/dist/jquery.min.js"></script>
+
+    <script>
+
+        var totalAllPrice = 0;
+
+        function resetToDefault() {
+            $("#itemQuantity").attr('disabled', true);
+            $("#btnAddItem").attr('disabled', true);            
+            $("#itemPrice").val("0");
+            $("#totalPrice").val("0");
+            $("#itemQuantity").val("0");
+            $("#foodName").val("");
+        }
+
+        function addItemToList() {
+            $('#dataTable1 tr:last')
+                .after('<tr id=food_' + $("#foodName").val() + '>'
+                    + '<td>' + $('#foodName option:selected').text() + '</td>'
+                    + '<td>' + $('#itemPrice').val() + '</td>'
+                    + '<td> <input type="number" class="form-control" id="itemQty" name="itemQty[]" value=' + $('#itemQuantity').val() + ' onkeyup="updateItemTotalPrice(\'food_' + $("#foodName").val() + '\', this.value, ' + $('#itemPrice').val() + '); ">'
+                    + '<input type="hidden" name="itemFoodId[]" value=' + $('#foodName').val() + '></td>'
+                    + '<input type="hidden" name="itemPrice[]" value=' + $('#itemPrice').val() + '></td>'
+                    + '<td class="total-price"> <span id="food_' + $("#foodName").val() + '_itemTotalPrice">' + $("#totalPrice").val() + '</span></td>'
+                    + '<td><a href="#" onclick="removeItem(\'food_' + $("#foodName").val() + '\')">Remove</a></td></tr>');
+
+
+            $('#totalAllPrice').text(getTotalPrice());
+
+            if (getTotalPrice() > 0) {
+                $("#btnSubmitOrder").attr('disabled', false);
+            }else{
+                $("#btnSubmitOrder").attr('disabled', true);
+            }
+            
+            resetToDefault();
+        }
+
+        function removeItem(item) {
+            $('table#dataTable1 tr#' + item).remove();
+
+            $('#totalAllPrice').text(getTotalPrice());
+
+            if (getTotalPrice() > 0) {
+                $("#btnSubmitOrder").attr('disabled', false);
+            } else {
+                $("#btnSubmitOrder").attr('disabled', true);
+            }
+        }
+
+        function getTotalPrice() {
+            var sum = 0;
+            $(".total-price").each(function () {
+                sum += parseFloat($(this).text());
+            });
+            return sum;
+        }
+
+        function loadItemDetail(optVal) {
+
+            if (optVal != "") {
+                var _url = '@urlHelper.GetFoodByFoodIdUrl()';
+                console.log(_url);
+
+                $.ajax
+                    ({
+                        type: "GET",
+                        url: _url,
+                        data: { foodId: optVal },
+                        success: function (response) {
+                            console.log(response);
+                            var data = response.data;
+
+                            $("#itemPrice").val(data.price);
+                        }
+                    });
+
+                $("#itemQuantity").attr('disabled', false);
+            } else {
+                resetToDefault();
+            }
+        }
+
+        function updateTotalPrice(qty) {
+
+            if (parseInt(qty) > 0) {
+                $("#btnAddItem").attr('disabled', false);
+            } else {
+                $("#btnAddItem").attr('disabled', true);
+            }
+
+            var itemPrice = parseInt($("#itemPrice").val());
+
+            var totalPrice = getItemTotalPrice(qty, itemPrice);
+
+            $("#totalPrice").val(totalPrice);
+        }
+
+        function getItemTotalPrice(qty, itemPrice) {
+
+            var totalPrice = itemPrice * qty;
+
+            return totalPrice;
+        }
+
+        function updateItemTotalPrice(itemElementId, qty, itemPrice) {
+
+            var totalPrice = getItemTotalPrice(qty, itemPrice);
+
+            $('#' + itemElementId + '_itemTotalPrice').text(totalPrice);
+
+            $('#totalAllPrice').text(getTotalPrice());
+        }
+
+
+    </script>
+
+}
